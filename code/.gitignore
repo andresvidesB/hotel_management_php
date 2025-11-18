@@ -1,0 +1,50 @@
+# /.gitignore — PHP API (app/proyecto). Mantén composer.lock en git.
+
+# 1) Dependencias & binarios
+/vendor/
+/vendor-bin/
+/composer.phar
+
+# 2) Configuración/secretos
+.env
+.env.*
+!.env.example
+
+# 3) Cachés, logs, cobertura, runtime
+*.log
+*.cache
+*.tmp
+*.pid
+*.lock
+phpstan.cache
+.php-cs-fixer.cache
+/.phpunit.result.cache
+/coverage/
+/build/
+/dist/
+/storage/*
+!/storage/.gitkeep
+# Si guardas subidas públicas:
+public/uploads/*
+!public/uploads/.gitkeep
+
+# 4) IDE/OS
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# 5) Herramientas (ajusta según uses)
+/node_modules/
+/package-lock.json
+yarn.lock
+pnpm-lock.yaml
+/.docker/
+/docker/
+/.env.local
+
+# 6) Tests/config locales opcionales (descomenta si no quieres versionarlos)
+# phpunit.xml
+# phpstan.neon
+# psalm.xml
