@@ -22,7 +22,7 @@ abstract class CustomString extends DefinedValue
         }
 
         $this->value = trim($this->value);
-        if ($this->value !== '') {
+        if ($this->value === '') {
             throw new \InvalidArgumentException("Value must not be empty: {$this->value}");
         }
 

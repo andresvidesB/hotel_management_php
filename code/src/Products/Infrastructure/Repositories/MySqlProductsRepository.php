@@ -5,6 +5,10 @@ declare(strict_types=1);
 
 namespace Src\Products\Infrastructure\Repositories;
 
+// 1. Importamos PDO y nuestra Base de Datos
+use \PDO;
+use Src\Shared\Infrastructure\Database;
+// Tus imports
 use Src\Products\Domain\Entities\ReadProduct;
 use Src\Products\Domain\Entities\WriteProduct;
 use Src\Products\Domain\Interfaces\ProductsRepository;
@@ -14,25 +18,62 @@ use Src\Shared\Domain\ValueObjects\Price;
 
 final class MySqlProductsRepository implements ProductsRepository
 {
+    private PDO $pdo;
+
+    public function __construct()
+    {
+        // 2. Obtenemos la conexión
+        $this->pdo = (new Database())->getConnection();
+    }
+
     public function addProduct(WriteProduct $product): Identifier
     {
-        // Mock: ID determinístico para pruebas
-        return new Identifier('00000000-0000-0000-0000-000000000101');
+        $sql = "INSERT INTO Productos (Id, Nombre, Precio) 
+                VALUES (:id, :nombre, :precio)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        
+        $stmt->execute([
+            ':id' => $product->getId()->getValue(),
+            ':nombre' => $product->getName()->getValue(),
+            ':precio' => $product->getPrice()->getValue()
+        ]);
+        
+        return $product->getId();
     }
 
     public function updateProduct(WriteProduct $product): void
     {
-        // Mock: sin persistencia
+        $sql = "UPDATE Productos SET 
+                    Nombre = :nombre, 
+                    Precio = :precio 
+                WHERE Id = :id";
+                
+        $stmt = $this->pdo->prepare($sql);
+        
+        $stmt->execute([
+            ':id' => $product->getId()->getValue(),
+            ':nombre' => $product->getName()->getValue(),
+            ':precio' => $product->getPrice()->getValue()
+        ]);
     }
 
     public function getProductById(Identifier $id): ?ReadProduct
     {
-        foreach ($this->seedProducts() as $product) {
-            if ($product->getId()->getValue() === $id->getValue()) {
-                return $product;
-            }
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Precio FROM Productos WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
+        
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null;
         }
-        return null;
+
+        return new ReadProduct(
+            new Identifier($row['Id']),
+            new ProductName($row['Nombre']),
+            new Price((float)$row['Precio'])
+        );
     }
 
     /**
@@ -42,49 +83,26 @@ final class MySqlProductsRepository implements ProductsRepository
      */
     public function getProducts(): array
     {
-        return $this->seedProducts();
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Precio FROM Productos");
+        $stmt->execute();
+        
+        $rows = $stmt->fetchAll();
+        $products = [];
+
+        foreach ($rows as $row) {
+            $products[] = new ReadProduct(
+                new Identifier($row['Id']),
+                new ProductName($row['Nombre']),
+                new Price((float)$row['Precio'])
+            );
+        }
+
+        return $products;
     }
 
     public function deleteProduct(Identifier $id): void
     {
-        // Mock: sin persistencia
-    }
-
-    /**
-     * Dataset de prueba consistente.
-     * @return list<ReadProduct>
-     */
-    private function seedProducts(): array
-    {
-        return [
-            $this->makeReadProduct(
-                id: '101',
-                name: 'Traslado Aeropuerto - Hotel',
-                price: 45.00
-            ),
-            $this->makeReadProduct(
-                id: '102',
-                name: 'City Tour Histórico',
-                price: 75.50
-            ),
-            $this->makeReadProduct(
-                id: '103',
-                name: 'Excursión Parque Nacional',
-                price: 120.00
-            ),
-        ];
-    }
-
-    private function makeReadProduct(
-        string $id,
-        string $name,
-        float $price
-    ): ReadProduct {
-        // Por qué: Garantiza VOs válidos en el mock igual que en producción.
-        return new ReadProduct(
-            new Identifier($id),
-            new ProductName($name),
-            new Price($price)
-        );
+        $stmt = $this->pdo->prepare("DELETE FROM Productos WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
     }
 }

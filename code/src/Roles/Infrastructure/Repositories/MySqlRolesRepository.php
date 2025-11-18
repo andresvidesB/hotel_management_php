@@ -1,9 +1,12 @@
 <?php
+// Archivo: src/Roles/Infrastructure/Repositories/MySqlRolesRepository.php
 
 declare(strict_types=1);
 
 namespace Src\Roles\Infrastructure\Repositories;
 
+use \PDO;
+use Src\Shared\Infrastructure\Database;
 use Src\Roles\Domain\Entities\ReadRole;
 use Src\Roles\Domain\Entities\WriteRole;
 use Src\Roles\Domain\Interfaces\RolesRepository;
@@ -12,54 +15,75 @@ use Src\Shared\Domain\ValueObjects\Identifier;
 
 final class MySqlRolesRepository implements RolesRepository
 {
+    private PDO $pdo;
+
+    public function __construct()
+    {
+        $this->pdo = (new Database())->getConnection();
+    }
+
     public function addRole(WriteRole $role): Identifier
     {
-        return new Identifier('00000000-0000-0000-0000-000000000301');
+        $sql = "INSERT INTO Roles (Id, Nombre) VALUES (:id, :nombre)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => $role->getId()->getValue(),
+            ':nombre' => $role->getName()->getValue()
+        ]);
+        
+        return $role->getId();
     }
 
     public function updateRole(WriteRole $role): void
     {
-        // Mock: sin persistencia
+        $sql = "UPDATE Roles SET Nombre = :nombre WHERE Id = :id";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => $role->getId()->getValue(),
+            ':nombre' => $role->getName()->getValue()
+        ]);
     }
 
     public function getRoleById(Identifier $id): ?ReadRole
     {
-        foreach ($this->seedRoles() as $role) {
-            if ($role->getId()->getValue() === $id->getValue()) {
-                return $role;
-            }
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre FROM Roles WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
+        
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null;
         }
-        return null;
+
+        return new ReadRole(
+            new Identifier($row['Id']),
+            new RoleName($row['Nombre'])
+        );
     }
 
-    /**
-     * @return ReadRole[]
-     */
     public function getRoles(): array
     {
-        return $this->seedRoles();
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre FROM Roles");
+        $stmt->execute();
+        
+        $rows = $stmt->fetchAll();
+        $roles = [];
+
+        foreach ($rows as $row) {
+            $roles[] = new ReadRole(
+                new Identifier($row['Id']),
+                new RoleName($row['Nombre'])
+            );
+        }
+
+        return $roles;
     }
 
     public function deleteRole(Identifier $id): void
     {
-        // Mock: sin persistencia
-    }
-
-    private function seedRoles(): array
-    {
-        return [
-            $this->makeReadRole('1', 'Administrador'),
-            $this->makeReadRole('2', 'Recepcionista'),
-            $this->makeReadRole('3', 'Cliente'),
-            $this->makeReadRole('4', 'Operador'),
-        ];
-    }
-
-    private function makeReadRole(string $id, string $name): ReadRole
-    {
-        return new ReadRole(
-            new Identifier($id),
-            new RoleName($name)
-        );
+        $stmt = $this->pdo->prepare("DELETE FROM Roles WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
     }
 }

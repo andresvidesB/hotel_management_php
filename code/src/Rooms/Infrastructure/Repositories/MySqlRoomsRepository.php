@@ -1,9 +1,13 @@
 <?php
-// File: src/Rooms/Infrastructure/Repositories/MySqlRoomsRepository.php
+// Archivo: src/Rooms/Infrastructure/Repositories/MySqlRoomsRepository.php
 declare(strict_types=1);
 
 namespace Src\Rooms\Infrastructure\Repositories;
 
+// 1. ¡Importamos las clases de PDO y nuestra nueva clase de Base de Datos!
+use \PDO;
+use Src\Shared\Infrastructure\Database; 
+// (El resto de tus imports)
 use Src\Rooms\Domain\Entities\ReadRoom;
 use Src\Rooms\Domain\Entities\WriteRoom;
 use Src\Rooms\Domain\Interfaces\RoomsRepository;
@@ -15,87 +19,118 @@ use Src\Shared\Domain\ValueObjects\Price;
 
 final class MySqlRoomsRepository implements RoomsRepository
 {
-    public function addRoom(WriteRoom $room): Identifier
-    {
-        // Mock: ID determinístico para pruebas
-        return new Identifier('00000000-0000-0000-0000-000000000001');
-    }
+    // 2. Propiedad para guardar la conexión
+    private PDO $pdo;
 
-    public function updateRoom(WriteRoom $room): void
+    public function __construct()
     {
-        // Mock: sin persistencia
-    }
-
-    public function getRoomById(Identifier $id): ?ReadRoom
-    {
-        foreach ($this->seedRooms() as $room) {
-            if ($room->getId()->getValue() === $id->getValue()) {
-                return $room;
-            }
-        }
-        return null;
+        // 3. Obtenemos la conexión PDO al crear el repositorio
+        $this->pdo = (new Database())->getConnection();
     }
 
     /**
+     * CONSULTA (INSERT): Añadir una habitación.
+     */
+    public function addRoom(WriteRoom $room): Identifier
+    {
+        $sql = "INSERT INTO Habitaciones (Id, Nombre, Tipo, Precio, Capacidad) 
+                VALUES (:id, :nombre, :tipo, :precio, :capacidad)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        
+        // 4. Usamos 'execute' con un array para prevenir Inyección SQL.
+        $stmt->execute([
+            ':id' => $room->getId()->getValue(),
+            ':nombre' => $room->getName()->getValue(),
+            ':tipo' => $room->getType()->getValue(),
+            ':precio' => $room->getPrice()->getValue(),
+            ':capacidad' => $room->getCapacity()->getValue()
+        ]);
+        
+        return $room->getId();
+    }
+
+    /**
+     * CONSULTA (UPDATE): Actualizar una habitación.
+     */
+    public function updateRoom(WriteRoom $room): void
+    {
+        $sql = "UPDATE Habitaciones SET 
+                    Nombre = :nombre, 
+                    Tipo = :tipo, 
+                    Precio = :precio, 
+                    Capacidad = :capacidad 
+                WHERE Id = :id";
+                
+        $stmt = $this->pdo->prepare($sql);
+        
+        $stmt->execute([
+            ':id' => $room->getId()->getValue(),
+            ':nombre' => $room->getName()->getValue(),
+            ':tipo' => $room->getType()->getValue(),
+            ':precio' => $room->getPrice()->getValue(),
+            ':capacidad' => $room->getCapacity()->getValue()
+        ]);
+    }
+
+    /**
+     * CONSULTA (SELECT BY ID): Obtener una habitación por ID.
+     */
+    public function getRoomById(Identifier $id): ?ReadRoom
+    {
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Tipo, Precio, Capacidad FROM Habitaciones WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
+        
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null; // No se encontró
+        }
+
+        // 5. Mapeamos los datos de la BD a nuestras Entidades y Value Objects
+        return new ReadRoom(
+            new Identifier($row['Id']),
+            new RoomName($row['Nombre']),
+            new RoomType($row['Tipo']),
+            new Price((float)$row['Precio']),
+            new RoomCapacity((int)$row['Capacidad'])
+        );
+    }
+
+    /**
+     * CONSULTA (SELECT): Obtener todas las habitaciones.
+     *
      * @return ReadRoom[]
      * @psalm-return list<ReadRoom>
      * @phpstan-return list<ReadRoom>
      */
     public function getRooms(): array
     {
-        return $this->seedRooms();
-    }
+        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Tipo, Precio, Capacidad FROM Habitaciones");
+        $stmt->execute();
+        
+        $rows = $stmt->fetchAll();
+        $rooms = [];
 
-    public function deleteRoom(Identifier $id): void
-    {
-        // Mock: sin persistencia
+        foreach ($rows as $row) {
+            $rooms[] = new ReadRoom(
+                new Identifier($row['Id']),
+                new RoomName($row['Nombre']),
+                new RoomType($row['Tipo']),
+                new Price((float)$row['Precio']),
+                new RoomCapacity((int)$row['Capacidad'])
+            );
+        }
+
+        return $rooms;
     }
 
     /**
-     * Dataset de prueba consistente.
-     * @return list<ReadRoom>
+     * CONSULTA (DELETE): Borrar una habitación.
      */
-    private function seedRooms(): array
+    public function deleteRoom(Identifier $id): void
     {
-        return [
-            $this->makeReadRoom(
-                id: '101',
-                name: 'Deluxe King',
-                type: 'king',
-                price: 129.99,
-                capacity: 2
-            ),
-            $this->makeReadRoom(
-                id: '102',
-                name: 'Family Suite',
-                type: 'suite',
-                price: 199.50,
-                capacity: 4
-            ),
-            $this->makeReadRoom(
-                id: '201',
-                name: 'Standard Twin',
-                type: 'twin',
-                price: 89.00,
-                capacity: 2
-            ),
-        ];
-    }
-
-    private function makeReadRoom(
-        string $id,
-        string $name,
-        string $type,
-        float $price,
-        int $capacity
-    ): ReadRoom {
-        // Por qué: Garantiza VOs válidos en el mock igual que en producción.
-        return new ReadRoom(
-            new Identifier($id),
-            new RoomName($name),
-            new RoomType($type),
-            new Price($price),
-            new RoomCapacity($capacity)
-        );
+        $stmt = $this->pdo->prepare("DELETE FROM Habitaciones WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
     }
 }

@@ -1,4 +1,5 @@
 <?php
+// Archivo: src/ReservationGuests/Infrastructure/Factories/ReservationGuestFactory.php
 
 declare(strict_types=1);
 

@@ -68,4 +68,10 @@ final class ReservationsController
     {
         return new UuidIdentifierCreator();
     }
+
+    public static function getReservaCompleta(string $id): array
+    {
+        $repo = self::repo();
+        return $repo->getReservaCompleta(new Identifier($id));
+    }
 }

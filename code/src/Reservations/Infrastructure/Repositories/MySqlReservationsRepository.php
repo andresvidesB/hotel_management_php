@@ -1,71 +1,126 @@
 <?php
+// Archivo: src/Reservations/Infrastructure/Repositories/MySqlReservationsRepository.php
 
 declare(strict_types=1);
 
 namespace Src\Reservations\Infrastructure\Repositories;
 
+use \PDO;
+use Src\Shared\Infrastructure\Database;
 use Src\Reservations\Domain\Entities\ReadReservation;
-use Src\Reservations\Domain\Interfaces\ReservationsRepository;
 use Src\Reservations\Domain\Entities\WriteReservation;
+use Src\Reservations\Domain\Interfaces\ReservationsRepository;
 use Src\Reservations\Domain\ValueObjects\ReservationSource;
-use Src\Reservations\Domain\ValueObjects\ReservationCreationDate;
+use Src\Shared\Domain\ValueObjects\TimeStamp; // Usamos TimeStamp genérico
 use Src\Shared\Domain\ValueObjects\Identifier;
 
 final class MySqlReservationsRepository implements ReservationsRepository
 {
-    public function addReservation(WriteReservation $reservation): Identifier
+    private PDO $pdo;
+
+    public function __construct()
     {
-        return new Identifier("00000000-0000-0000-0000-000000000401");
+        $this->pdo = (new Database())->getConnection();
     }
 
-    public function updateReservation(WriteReservation $reservation): void {}
+    public function addReservation(WriteReservation $reservation): Identifier
+    {
+        $sql = "INSERT INTO Reserva (Id, FuenteReserva, IdUsuario, FechaCreacion) 
+                VALUES (:id, :source, :userId, :createdAt)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        
+        // CONVERSIÓN: TimeStamp (int) -> MySQL DATETIME (string)
+        $fechaMySQL = date('Y-m-d H:i:s', $reservation->getCreatedAt()->getValue());
 
-    public function deleteReservation(Identifier $id): void {}
+        $stmt->execute([
+            ':id' => $reservation->getId()->getValue(),
+            ':source' => $reservation->getSource()->getValue(),
+            ':userId' => $reservation->getUserId()->getValue(),
+            ':createdAt' => $fechaMySQL
+        ]);
+        
+        return $reservation->getId();
+    }
+
+    public function updateReservation(WriteReservation $reservation): void
+    {
+        $sql = "UPDATE Reserva SET 
+                    FuenteReserva = :source, 
+                    FechaCreacion = :createdAt 
+                WHERE Id = :id";
+        
+        $fechaMySQL = date('Y-m-d H:i:s', $reservation->getCreatedAt()->getValue());
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => $reservation->getId()->getValue(),
+            ':source' => $reservation->getSource()->getValue(),
+            ':createdAt' => $fechaMySQL
+        ]);
+    }
 
     public function getReservationById(Identifier $id): ?ReadReservation
     {
-        foreach ($this->seed() as $reservation) {
-            if ($reservation->getId()->getValue() === $id->getValue()) {
-                return $reservation;
-            }
+        $stmt = $this->pdo->prepare("SELECT Id, FuenteReserva, IdUsuario, FechaCreacion FROM Reserva WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
+        
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return null;
         }
-        return null;
+
+        // CONVERSIÓN: MySQL DATETIME (string) -> TimeStamp (int)
+        $timestamp = strtotime($row['FechaCreacion']);
+
+        return new ReadReservation(
+            new Identifier($row['Id']),
+            new ReservationSource($row['FuenteReserva'] ?? 'Desconocido'),
+            new Identifier($row['IdUsuario']),
+            new TimeStamp($timestamp)
+        );
     }
 
     public function getReservations(): array
     {
-        return $this->seed();
+        $stmt = $this->pdo->prepare("SELECT Id, FuenteReserva, IdUsuario, FechaCreacion FROM Reserva ORDER BY FechaCreacion DESC");
+        $stmt->execute();
+        
+        $rows = $stmt->fetchAll();
+        $reservations = [];
+
+        foreach ($rows as $row) {
+            $timestamp = strtotime($row['FechaCreacion']);
+            
+            $reservations[] = new ReadReservation(
+                new Identifier($row['Id']),
+                new ReservationSource($row['FuenteReserva'] ?? 'Desconocido'),
+                new Identifier($row['IdUsuario']),
+                new TimeStamp($timestamp)
+            );
+        }
+
+        return $reservations;
     }
 
-    private function seed(): array
+    public function deleteReservation(Identifier $id): void
     {
-        return [
-            $this->make(
-                "1",
-                "web",
-                "11111111-1111-1111-1111-111111111111",
-                "2025-01-01 08:30:00"
-            ),
-            $this->make(
-                "2",
-                "agencia",
-                "22222222-2222-2222-2222-222222222222",
-                "2025-01-20 10:00:00"
-            ),
-        ];
+        $stmt = $this->pdo->prepare("DELETE FROM Reserva WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
     }
 
-    private function make(
-        string $id,
-        string $source,
-        string $userId,
-        string $createdAt
-    ): ReadReservation {
-        return new ReadReservation(
-            new Identifier($id),
-            new ReservationSource($source),
-            new Identifier($userId),
-            new ReservationCreationDate($createdAt)
-        );
+    public function getReservaCompleta(Identifier $id): array
+    {
+        // ¡Mira qué limpia queda la consulta en PHP!
+        $sql = "SELECT * FROM Vista_Reserva_Completa WHERE ReservaID = :id";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':id' => $id->getValue()]);
+        
+        $result = $stmt->fetch();
+        
+        // Si no encuentra nada, retornamos array vacío
+        return $result ?: [];
     }
 }

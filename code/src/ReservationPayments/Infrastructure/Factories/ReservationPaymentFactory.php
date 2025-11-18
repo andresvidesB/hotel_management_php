@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Src\ReservationPayments\Infrastructure\Factories;
@@ -13,10 +12,16 @@ final class ReservationPaymentFactory
 {
     public static function writeReservationPaymentFromArray(array $data): WriteReservationPayment
     {
+        // Manejo de fecha
+        $dateVal = $data['reservation_payment_date'] ?? time();
+        if (is_string($dateVal)) {
+            $dateVal = strtotime($dateVal);
+        }
+
         return new WriteReservationPayment(
             new Identifier($data['reservation_payment_reservation_id']),
-            new Price((float) $data['reservation_payment_amount']),
-            new TimeStamp($data['reservation_payment_date'])
+            new Price((float)$data['reservation_payment_amount']),
+            new TimeStamp((int)$dateVal)
         );
     }
 }
