@@ -85,12 +85,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 throw new Exception("Habitación y fechas son obligatorias.");
             }
 
+            // B. Crear Reserva
+            
+            // 1. Generamos un ID temporal para pasar la validación de la Fábrica
+            // (El UseCase ignorará este y creará el definitivo, pero necesitamos enviar algo que no esté vacío)
+            $idCreator = new UuidIdentifierCreator();
+            $tempId = $idCreator->createIdentifier()->getValue();
+
+            // 2. Llamamos al controlador enviando el ID temporal
             $reservaIdentifier = ReservationsController::addReservation([
-                'reservation_id' => '', 
+                'reservation_id' => $tempId, // <--- AQUÍ ESTABA EL ERROR (antes era '')
                 'reservation_source' => 'Recepción',
                 'reservation_user_id' => $userId,
                 'reservation_created_at' => time()
             ]);
+            
+            // 3. Capturamos el ID REAL y DEFINITIVO que generó la base de datos
             $reservaId = $reservaIdentifier->getValue();
 
             ReservationRoomsController::addReservationRoom([
