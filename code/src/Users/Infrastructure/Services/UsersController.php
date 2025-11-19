@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Src\Users\Infrastructure\Services;
@@ -22,6 +21,14 @@ final class UsersController
         $useCase    = new AddUser(self::repo());
         $useCase->execute($userEntity);
     }
+    
+    /**
+     * NUEVO: Método estático para guardar datos de persona (Nombres, Apellidos, Email)
+     */
+    public static function savePersonData(string $id, string $nombres, string $apellidos, string $email = null): void
+    {
+        self::repo()->savePersonData($id, $nombres, $apellidos, $email);
+    }
 
     public static function updateUser(array $user): void
     {
@@ -36,35 +43,16 @@ final class UsersController
         $useCase->execute(new Identifier($idPerson));
     }
 
-    /**
-     * @return array<array<string,mixed>>
-     */
     public static function getUsers(): array
     {
-        $useCase = new GetUsers(self::repo());
-
-        /** @var ReadUser[] $items */
-        $items = $useCase->execute();
-
-        $users = [];
-        foreach ($items as $user) {
-            if (!$user instanceof ReadUser) {
-                continue;
-            }
-            $users[] = $user->toArray();
-        }
-
-        return $users;
+        // Devolvemos el array directo del repositorio (compatible con la Vista SQL)
+        return self::repo()->getUsers();
     }
 
-    /**
-     * @return array<string,mixed> Empty array si no existe.
-     */
     public static function getUserByIdPerson(string $idPerson): array
     {
         $useCase = new GetUserByIdPerson(self::repo());
         $read    = $useCase->execute(new Identifier($idPerson));
-
         return $read instanceof ReadUser ? $read->toArray() : [];
     }
 

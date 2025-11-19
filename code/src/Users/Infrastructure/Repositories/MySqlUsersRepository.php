@@ -1,6 +1,4 @@
 <?php
-// Archivo: src/Users/Infrastructure/Repositories/MySqlUsersRepository.php
-
 declare(strict_types=1);
 
 namespace Src\Users\Infrastructure\Repositories;
@@ -27,10 +25,9 @@ final class MySqlUsersRepository implements UsersRepository
         try {
             $this->pdo->beginTransaction();
 
-            // 1. Asegurar que existe el Tercero (Persona)
-            // Usamos nombres genéricos porque WriteUser no tiene esos datos
+            // 1. Insertamos un Tercero base si no existe
             $sqlTercero = "INSERT IGNORE INTO Terceros (Id, Nombres, Apellidos) 
-                           VALUES (:id, 'Usuario Sistema', 'Pendiente')";
+                           VALUES (:id, 'Usuario', 'Nuevo')";
             
             $stmtT = $this->pdo->prepare($sqlTercero);
             $stmtT->execute([':id' => $user->getIdPerson()->getValue()]);
@@ -42,7 +39,7 @@ final class MySqlUsersRepository implements UsersRepository
             $stmtU = $this->pdo->prepare($sqlUser);
             $stmtU->execute([
                 ':id' => $user->getIdPerson()->getValue(),
-                ':password' => $user->getPassword()->getValue(), // En producción, aquí usarías password_hash()
+                ':password' => $user->getPassword()->getValue(),
                 ':roleId' => $user->getRoleId()->getValue()
             ]);
 
@@ -54,14 +51,31 @@ final class MySqlUsersRepository implements UsersRepository
         }
     }
 
+    /**
+     * NUEVO MÉTODO: Guarda los datos personales reales en la tabla Terceros
+     */
+    public function savePersonData(string $id, string $nombres, string $apellidos, ?string $email): void
+    {
+        $sql = "UPDATE Terceros SET 
+                    Nombres = :nom, 
+                    Apellidos = :ape, 
+                    CorreoElectronico = :email 
+                WHERE Id = :id";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => $id,
+            ':nom' => $nombres,
+            ':ape' => $apellidos,
+            ':email' => $email
+        ]);
+    }
+
+    // ... (Mantener el resto de métodos: updateUser, getUserByIdPerson, getUsers, deleteUser igual que antes) ...
+    
     public function updateUser(WriteUser $user): void
     {
-        // Solo permitimos cambiar contraseña y rol, el ID es inmutable
-        $sql = "UPDATE Usuario SET 
-                    Contrasena = :password, 
-                    IdRol = :roleId 
-                WHERE IdPersona = :id";
-        
+        $sql = "UPDATE Usuario SET Contrasena = :password, IdRol = :roleId WHERE IdPersona = :id";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':id' => $user->getIdPerson()->getValue(),
@@ -74,44 +88,28 @@ final class MySqlUsersRepository implements UsersRepository
     {
         $stmt = $this->pdo->prepare("SELECT IdPersona, Contrasena, IdRol FROM Usuario WHERE IdPersona = :id");
         $stmt->execute([':id' => $idPerson->getValue()]);
-        
         $row = $stmt->fetch();
-
-        if (!$row) {
-            return null;
-        }
-
-        return new ReadUser(
-            new Identifier($row['IdPersona']),
-            new UserPassword($row['Contrasena']),
-            new Identifier($row['IdRol'])
-        );
+        if (!$row) return null;
+        return new ReadUser(new Identifier($row['IdPersona']), new UserPassword($row['Contrasena']), new Identifier($row['IdRol']));
     }
 
     public function getUsers(): array
     {
-        $stmt = $this->pdo->prepare("SELECT IdPersona, Contrasena, IdRol FROM Usuario");
-        $stmt->execute();
-        
-        $rows = $stmt->fetchAll();
-        $users = [];
-
-        foreach ($rows as $row) {
-            $users[] = new ReadUser(
-                new Identifier($row['IdPersona']),
-                new UserPassword($row['Contrasena']),
-                new Identifier($row['IdRol'])
-            );
+        // Usamos la Vista si existe, sino la tabla
+        try {
+            $stmt = $this->pdo->prepare("SELECT * FROM Vista_Usuarios_Info");
+            $stmt->execute();
+            return $stmt->fetchAll();
+        } catch (\Exception $e) {
+            // Fallback si la vista no existe
+            $stmt = $this->pdo->prepare("SELECT * FROM Usuario");
+            $stmt->execute();
+            return $stmt->fetchAll();
         }
-
-        return $users;
     }
 
     public function deleteUser(Identifier $idPerson): void
     {
-        // Borramos el Usuario. Dependiendo de tu lógica de negocio, 
-        // podrías querer borrar también el Tercero o mantenerlo.
-        // Aquí borramos solo el registro de Usuario para no eliminar historial de la persona.
         $stmt = $this->pdo->prepare("DELETE FROM Usuario WHERE IdPersona = :id");
         $stmt->execute([':id' => $idPerson->getValue()]);
     }
