@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Src\ReservationRooms\Infrastructure\Services;
@@ -25,46 +24,46 @@ final class ReservationRoomsController
     public static function deleteReservationRoom(string $reservationId, string $roomId): void
     {
         $useCase = new DeleteReservationRoom(self::repo());
-        $useCase->execute(
-            new Identifier($reservationId),
-            new Identifier($roomId)
-        );
+        $useCase->execute(new Identifier($reservationId), new Identifier($roomId));
     }
 
-    /**
-     * @return array<array<string,mixed>>
-     */
     public static function getReservationRooms(): array
     {
         $useCase = new GetReservationRooms(self::repo());
         $items   = $useCase->execute();
-
+        // Mantenemos la conversión si el repo devuelve objetos, o devolvemos directo si son arrays
+        // Para seguridad, hacemos un map manual simple
         $result = [];
-        foreach ($items as $relation) {
-            if ($relation instanceof ReadReservationRoom) {
-                $result[] = $relation->toArray();
+        foreach ($items as $item) {
+            if ($item instanceof ReadReservationRoom) {
+                $result[] = $item->toArray();
+            } else {
+                $result[] = $item; // Si ya es array, lo pasamos
             }
         }
-
         return $result;
     }
 
-    /**
-     * @return array<array<string,mixed>>
-     */
     public static function getRoomsByReservation(string $reservationId): array
     {
         $useCase = new GetRoomsByReservation(self::repo());
         $items   = $useCase->execute(new Identifier($reservationId));
-        $result = [];
         
-        foreach ($items as $relation) {
-            if ($relation instanceof ReadReservationRoom) {
-                $result[] = $relation->toArray();
+        $result = [];
+        foreach ($items as $item) {
+            if ($item instanceof ReadReservationRoom) {
+                $result[] = $item->toArray();
+            } else {
+                $result[] = $item;
             }
         }
-
         return $result;
+    }
+
+    // Método para validar disponibilidad
+    public static function isRoomAvailable(string $roomId, string $start, string $end, string $ignoreId = null): bool
+    {
+        return self::repo()->isRoomAvailable($roomId, $start, $end, $ignoreId);
     }
 
     private static function repo(): MySqlReservationRoomsRepository

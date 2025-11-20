@@ -1,6 +1,4 @@
 <?php
-// Archivo: src/Guests/Infrastructure/Repositories/MySqlGuestsRepository.php
-
 declare(strict_types=1);
 
 namespace Src\Guests\Infrastructure\Repositories;
@@ -27,22 +25,18 @@ final class MySqlGuestsRepository implements GuestsRepository
     public function addGuest(WriteGuest $guest): void
     {
         try {
-            // 1. Iniciamos una Transacción (Todo o nada)
             $this->pdo->beginTransaction();
 
-            // 2. Primero insertamos/aseguramos el "Tercero" (Persona base)
-            // Usamos INSERT IGNORE para que no falle si la persona ya existe
-            // Como tu objeto WriteGuest no tiene Nombre/Apellido, ponemos unos genéricos por ahora.
+            // 1. Asegurar que existe el registro en TERCEROS (Aquí es donde vive el Nombre)
+            // Usamos 'INSERT IGNORE' para no borrar si ya existe un usuario con ese ID
             $sqlTercero = "INSERT IGNORE INTO Terceros (Id, Nombres, Apellidos) 
-                           VALUES (:id, 'Nombre Pendiente', 'Apellido Pendiente')";
-            
+                           VALUES (:id, 'Huesped', 'Nuevo')";
             $stmtT = $this->pdo->prepare($sqlTercero);
             $stmtT->execute([':id' => $guest->getIdPerson()->getValue()]);
 
-            // 3. Ahora sí insertamos el Huésped
+            // 2. Insertar solo los datos de alojamiento en HUESPEDES
             $sqlGuest = "INSERT INTO Huespedes (IdPersona, TipoDocumento, NumeroDocumento, Pais) 
                          VALUES (:id, :docType, :docNum, :country)";
-            
             $stmtG = $this->pdo->prepare($sqlGuest);
             $stmtG->execute([
                 ':id' => $guest->getIdPerson()->getValue(),
@@ -51,11 +45,8 @@ final class MySqlGuestsRepository implements GuestsRepository
                 ':country' => $guest->getCountry()->getValue()
             ]);
 
-            // 4. Confirmamos los cambios
             $this->pdo->commit();
-
         } catch (\Exception $e) {
-            // Si algo falla, deshacemos todo
             $this->pdo->rollBack();
             throw $e;
         }
@@ -63,6 +54,8 @@ final class MySqlGuestsRepository implements GuestsRepository
 
     public function updateGuest(WriteGuest $guest): void
     {
+        // Aquí solo actualizamos datos de alojamiento (Documento, País)
+        // Los nombres se actualizan vía UsersController::savePersonData en la tabla Terceros
         $sql = "UPDATE Huespedes SET 
                     TipoDocumento = :docType, 
                     NumeroDocumento = :docNum, 
@@ -80,14 +73,11 @@ final class MySqlGuestsRepository implements GuestsRepository
 
     public function getGuestById(Identifier $idPerson): ?ReadGuest
     {
-        $stmt = $this->pdo->prepare("SELECT IdPersona, TipoDocumento, NumeroDocumento, Pais FROM Huespedes WHERE IdPersona = :id");
+        $stmt = $this->pdo->prepare("SELECT * FROM Huespedes WHERE IdPersona = :id");
         $stmt->execute([':id' => $idPerson->getValue()]);
-        
         $row = $stmt->fetch();
 
-        if (!$row) {
-            return null;
-        }
+        if (!$row) return null;
 
         return new ReadGuest(
             new Identifier($row['IdPersona']),
@@ -97,21 +87,53 @@ final class MySqlGuestsRepository implements GuestsRepository
         );
     }
 
+    /**
+     * AQUÍ ESTÁ LA MAGIA: JOIN para extraer el nombre desde TERCEROS
+     */
     public function getGuests(): array
     {
-        $stmt = $this->pdo->prepare("SELECT IdPersona, TipoDocumento, NumeroDocumento, Pais FROM Huespedes");
-        $stmt->execute();
-        
-        $rows = $stmt->fetchAll();
-        $guests = [];
+        // Seleccionamos datos de Huespedes y los unimos con Terceros para sacar el nombre
+        $sql = "SELECT 
+                    h.IdPersona, 
+                    h.TipoDocumento, 
+                    h.NumeroDocumento, 
+                    h.Pais,
+                    t.Nombres, 
+                    t.Apellidos, 
+                    t.CorreoElectronico,
+                    t.Telefono
+                FROM Huespedes h
+                LEFT JOIN Terceros t ON h.IdPersona = t.Id
+                ORDER BY t.Nombres ASC";
 
-        foreach ($rows as $row) {
-            $guests[] = new ReadGuest(
-                new Identifier($row['IdPersona']),
-                new GuestDocumentType($row['TipoDocumento']),
-                new GuestDocumentNumber($row['NumeroDocumento']),
-                new GuestCountry($row['Pais'] ?? '')
-            );
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute();
+        $rawRows = $stmt->fetchAll();
+
+        $guests = [];
+        foreach ($rawRows as $row) {
+            // Construimos el nombre completo usando los datos de la tabla Terceros
+            $nombre = $row['Nombres'] ?? '';
+            $apellido = $row['Apellidos'] ?? '';
+            $nombreCompleto = trim("$nombre $apellido");
+            
+            if (empty($nombreCompleto)) {
+                $nombreCompleto = 'Huésped ' . substr($row['IdPersona'], 0, 6);
+            }
+
+            $guests[] = [
+                'guest_id_person'       => $row['IdPersona'],
+                'guest_document_type'   => $row['TipoDocumento'],
+                'guest_document_number' => $row['NumeroDocumento'],
+                'guest_country'         => $row['Pais'] ?? '',
+                
+                // Datos extraídos de Terceros
+                'NombreCompleto'    => $nombreCompleto,
+                'Nombres'           => $nombre,
+                'Apellidos'         => $apellido,
+                'CorreoElectronico' => $row['CorreoElectronico'] ?? 'S/E',
+                'Telefono'          => $row['Telefono'] ?? ''
+            ];
         }
 
         return $guests;
@@ -119,7 +141,7 @@ final class MySqlGuestsRepository implements GuestsRepository
 
     public function deleteGuest(Identifier $idPerson): void
     {
-        // Al borrar de Terceros, se borra Huespedes automáticamente por el ON DELETE CASCADE del SQL
+        // Al borrar el Tercero, se borra el Huésped en cascada
         $stmt = $this->pdo->prepare("DELETE FROM Terceros WHERE Id = :id");
         $stmt->execute([':id' => $idPerson->getValue()]);
     }

@@ -1,6 +1,4 @@
 <?php
-// Archivo: src/ReservationRooms/Infrastructure/Repositories/MySqlReservationRoomsRepository.php
-
 declare(strict_types=1);
 
 namespace Src\ReservationRooms\Infrastructure\Repositories;
@@ -24,14 +22,11 @@ final class MySqlReservationRoomsRepository implements ReservationRoomsRepositor
 
     public function addReservationRoom(WriteReservationRoom $reservationRoom): void
     {
-        // Tabla: Reserva_Habitacion
-        // PK Compuesta: (IdReserva, IdHabitacion)
         $sql = "INSERT INTO Reserva_Habitacion (IdReserva, IdHabitacion, FechaInicio, FechaFin) 
                 VALUES (:reservationId, :roomId, :startDate, :endDate)";
         
         $stmt = $this->pdo->prepare($sql);
         
-        // Conversión de TimeStamp (int) a DATE (string 'Y-m-d') para MySQL
         $start = date('Y-m-d', $reservationRoom->getStartDate()->getValue());
         $end   = date('Y-m-d', $reservationRoom->getEndDate()->getValue());
 
@@ -56,41 +51,53 @@ final class MySqlReservationRoomsRepository implements ReservationRoomsRepositor
     {
         $stmt = $this->pdo->prepare("SELECT IdReserva, IdHabitacion, FechaInicio, FechaFin FROM Reserva_Habitacion");
         $stmt->execute();
-        
-        $rows = $stmt->fetchAll();
-        $result = [];
-
-        foreach ($rows as $row) {
-            // Conversión de String fecha a Int Timestamp
-            $start = strtotime($row['FechaInicio']);
-            $end   = strtotime($row['FechaFin']);
-
-            $result[] = new ReadReservationRoom(
-                new Identifier($row['IdReserva']),
-                new Identifier($row['IdHabitacion'])
-            );
-            // Nota: ReadReservationRoom en tu diseño actual solo recibe IDs en el constructor
-            // Si quisieras las fechas en la lectura, tendrías que modificar ReadReservationRoom.
-            // Por ahora, para cumplir con tu entidad actual, asignamos las fechas vía setters si existen,
-            // o simplemente devolvemos la relación. 
-            
-            // Asumiendo que quieres las fechas en el objeto final:
-             $item = end($result); // Tomamos el último insertado
-             $item->setStartDate(new TimeStamp((int)$start));
-             $item->setEndDate(new TimeStamp((int)$end));
-        }
-
-        return $result;
+        return $this->mapRows($stmt->fetchAll());
     }
 
     public function getRoomsByReservation(Identifier $reservationId): array
     {
         $stmt = $this->pdo->prepare("SELECT IdReserva, IdHabitacion, FechaInicio, FechaFin FROM Reserva_Habitacion WHERE IdReserva = :resId");
         $stmt->execute([':resId' => $reservationId->getValue()]);
-        
-        $rows = $stmt->fetchAll();
-        $result = [];
+        return $this->mapRows($stmt->fetchAll());
+    }
 
+    public function isRoomAvailable(string $roomId, string $startDate, string $endDate, string $ignoreReservationId = null): bool
+    {
+        // 1. PRIMERO: Verificar estado físico CRÍTICO
+        // Solo bloqueamos si está en MANTENIMIENTO o BLOQUEADA. 
+        // Si está 'Ocupada' o 'Limpieza' HOY, no importa, porque el cliente podría quererla para la próxima semana.
+        $stmtCheck = $this->pdo->prepare("SELECT Estado FROM Habitaciones WHERE Id = :id");
+        $stmtCheck->execute([':id' => $roomId]);
+        $estadoFisico = $stmtCheck->fetchColumn();
+
+        if ($estadoFisico === 'Mantenimiento' || $estadoFisico === 'Bloqueada') {
+            return false; // Está rota/cerrada indefinidamente
+        }
+
+        // 2. SEGUNDO: Verificar solapamiento de fechas (Lo importante)
+        // Revisamos si choca con reservas CONFIRMADAS u OCUPADAS en ese rango.
+        $sql = "SELECT COUNT(*) FROM Vista_Reserva_Completa 
+                WHERE IdHabitacion = :roomId 
+                AND (EstadoActual IS NULL OR EstadoActual NOT IN ('Cancelada', 'Finalizada', 'Check-out')) 
+                AND NOT (FechaFin <= :startDate OR FechaInicio >= :endDate)";
+        
+        if ($ignoreReservationId) {
+            $sql .= " AND ReservaID != :ignoreId";
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $params = [':roomId' => $roomId, ':startDate' => $startDate, ':endDate' => $endDate];
+        if ($ignoreReservationId) $params[':ignoreId'] = $ignoreReservationId;
+        
+        $stmt->execute($params);
+        
+        return $stmt->fetchColumn() == 0;
+    }
+
+    // Helper privado para mapear resultados
+    private function mapRows(array $rows): array
+    {
+        $result = [];
         foreach ($rows as $row) {
             $start = strtotime($row['FechaInicio']);
             $end   = strtotime($row['FechaFin']);
@@ -99,12 +106,12 @@ final class MySqlReservationRoomsRepository implements ReservationRoomsRepositor
                 new Identifier($row['IdReserva']),
                 new Identifier($row['IdHabitacion'])
             );
+            // Asignamos las fechas manualmente ya que el constructor original solo pedía IDs
             $item->setStartDate(new TimeStamp((int)$start));
             $item->setEndDate(new TimeStamp((int)$end));
             
             $result[] = $item;
         }
-
         return $result;
     }
 }

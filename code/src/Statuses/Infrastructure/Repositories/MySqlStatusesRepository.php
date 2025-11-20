@@ -1,6 +1,4 @@
 <?php
-// Archivo: src/Statuses/Infrastructure/Repositories/MySqlStatusesRepository.php
-
 declare(strict_types=1);
 
 namespace Src\Statuses\Infrastructure\Repositories;
@@ -26,21 +24,18 @@ final class MySqlStatusesRepository implements StatusesRepository
     public function addStatus(WriteStatus $status): Identifier
     {
         $sql = "INSERT INTO Estados (Id, Nombre, Descripcion) VALUES (:id, :name, :description)";
-        
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':id'          => $status->getId()->getValue(),
             ':name'        => $status->getName()->getValue(),
             ':description' => $status->getDescription()->getValue()
         ]);
-        
         return $status->getId();
     }
 
     public function updateStatus(WriteStatus $status): void
     {
         $sql = "UPDATE Estados SET Nombre = :name, Descripcion = :description WHERE Id = :id";
-        
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':id'          => $status->getId()->getValue(),
@@ -53,12 +48,8 @@ final class MySqlStatusesRepository implements StatusesRepository
     {
         $stmt = $this->pdo->prepare("SELECT Id, Nombre, Descripcion FROM Estados WHERE Id = :id");
         $stmt->execute([':id' => $id->getValue()]);
-        
         $row = $stmt->fetch();
-
-        if (!$row) {
-            return null;
-        }
+        if (!$row) return null;
 
         return new ReadStatus(
             new Identifier($row['Id']),
@@ -67,23 +58,26 @@ final class MySqlStatusesRepository implements StatusesRepository
         );
     }
 
+    /**
+     * MÉTODO CORREGIDO: 
+     * Devuelve un array formateado exactamente como lo necesita el Frontend
+     */
     public function getStatuses(): array
     {
         $stmt = $this->pdo->prepare("SELECT Id, Nombre, Descripcion FROM Estados");
         $stmt->execute();
-        
         $rows = $stmt->fetchAll();
-        $statuses = [];
-
+        
+        $result = [];
         foreach ($rows as $row) {
-            $statuses[] = new ReadStatus(
-                new Identifier($row['Id']),
-                new StatusName($row['Nombre']),
-                new StatusDescription($row['Descripcion'] ?? '')
-            );
+            // Aquí hacemos la "Traducción" de nombres de BD a Frontend
+            $result[] = [
+                'status_id'          => $row['Id'],
+                'status_name'        => $row['Nombre'],
+                'status_description' => $row['Descripcion'] ?? ''
+            ];
         }
-
-        return $statuses;
+        return $result;
     }
 
     public function deleteStatus(Identifier $id): void

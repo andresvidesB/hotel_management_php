@@ -23,29 +23,26 @@ final class MySqlReservationPaymentsRepository implements ReservationPaymentsRep
 
     public function addReservationPayment(WriteReservationPayment $payment): void
     {
-        // Tabla: Reserva_Pagos
-        $sql = "INSERT INTO Reserva_Pagos (IdReserva, Cantidad, FechaPago) 
-                VALUES (:reservationId, :amount, :paymentDate)";
+        // Incluimos MetodoPago en el INSERT
+        $sql = "INSERT INTO Reserva_Pagos (IdReserva, Cantidad, FechaPago, MetodoPago) 
+                VALUES (:reservationId, :amount, :paymentDate, :method)";
         
         $stmt = $this->pdo->prepare($sql);
-        
-        // Conversión: TimeStamp -> MySQL DATE
         $date = date('Y-m-d', $payment->getPaymentDate()->getValue());
 
         $stmt->execute([
             ':reservationId' => $payment->getReservationId()->getValue(),
             ':amount'        => $payment->getAmount()->getValue(),
-            ':paymentDate'   => $date
+            ':paymentDate'   => $date,
+            ':method'        => $payment->getMethod()
         ]);
     }
 
     public function updateReservationPayment(WriteReservationPayment $payment): void
     {
-        // Nota: Como la tabla Reserva_Pagos no tiene un ID único por pago,
-        // actualizar un pago específico es difícil.
-        // Aquí actualizamos por fecha y reserva (asumiendo un pago por día).
         $sql = "UPDATE Reserva_Pagos SET 
-                    Cantidad = :amount
+                    Cantidad = :amount,
+                    MetodoPago = :method
                 WHERE IdReserva = :reservationId AND FechaPago = :paymentDate";
 
         $stmt = $this->pdo->prepare($sql);
@@ -54,27 +51,27 @@ final class MySqlReservationPaymentsRepository implements ReservationPaymentsRep
         $stmt->execute([
             ':reservationId' => $payment->getReservationId()->getValue(),
             ':amount'        => $payment->getAmount()->getValue(),
-            ':paymentDate'   => $date
+            ':paymentDate'   => $date,
+            ':method'        => $payment->getMethod()
         ]);
     }
 
     public function deleteReservationPayment(Identifier $reservationId): void
     {
-        // Borra TODOS los pagos de una reserva
         $stmt = $this->pdo->prepare("DELETE FROM Reserva_Pagos WHERE IdReserva = :id");
         $stmt->execute([':id' => $reservationId->getValue()]);
     }
 
     public function getReservationPayments(): array
     {
-        $stmt = $this->pdo->prepare("SELECT IdReserva, Cantidad, FechaPago FROM Reserva_Pagos");
+        $stmt = $this->pdo->prepare("SELECT * FROM Reserva_Pagos");
         $stmt->execute();
         return $this->mapRows($stmt->fetchAll());
     }
 
     public function getPaymentsByReservation(Identifier $reservationId): array
     {
-        $stmt = $this->pdo->prepare("SELECT IdReserva, Cantidad, FechaPago FROM Reserva_Pagos WHERE IdReserva = :id");
+        $stmt = $this->pdo->prepare("SELECT * FROM Reserva_Pagos WHERE IdReserva = :id");
         $stmt->execute([':id' => $reservationId->getValue()]);
         return $this->mapRows($stmt->fetchAll());
     }
@@ -84,11 +81,11 @@ final class MySqlReservationPaymentsRepository implements ReservationPaymentsRep
         $result = [];
         foreach ($rows as $row) {
             $dateInt = strtotime($row['FechaPago']);
-
             $result[] = new ReadReservationPayment(
                 new Identifier($row['IdReserva']),
                 new Price((float)$row['Cantidad']),
-                new TimeStamp((int)$dateInt)
+                new TimeStamp((int)$dateInt),
+                $row['MetodoPago'] ?? 'Efectivo' // Mapeo del nuevo campo
             );
         }
         return $result;

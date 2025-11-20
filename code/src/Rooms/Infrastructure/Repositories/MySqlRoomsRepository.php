@@ -1,136 +1,118 @@
 <?php
-// Archivo: src/Rooms/Infrastructure/Repositories/MySqlRoomsRepository.php
 declare(strict_types=1);
 
 namespace Src\Rooms\Infrastructure\Repositories;
 
-// 1. ¡Importamos las clases de PDO y nuestra nueva clase de Base de Datos!
 use \PDO;
-use Src\Shared\Infrastructure\Database; 
-// (El resto de tus imports)
+use Src\Shared\Infrastructure\Database;
 use Src\Rooms\Domain\Entities\ReadRoom;
 use Src\Rooms\Domain\Entities\WriteRoom;
 use Src\Rooms\Domain\Interfaces\RoomsRepository;
 use Src\Rooms\Domain\ValueObjects\RoomCapacity;
 use Src\Rooms\Domain\ValueObjects\RoomName;
 use Src\Rooms\Domain\ValueObjects\RoomType;
+use Src\Rooms\Domain\ValueObjects\RoomState;
 use Src\Shared\Domain\ValueObjects\Identifier;
 use Src\Shared\Domain\ValueObjects\Price;
 
 final class MySqlRoomsRepository implements RoomsRepository
 {
-    // 2. Propiedad para guardar la conexión
     private PDO $pdo;
 
     public function __construct()
     {
-        // 3. Obtenemos la conexión PDO al crear el repositorio
         $this->pdo = (new Database())->getConnection();
     }
 
-    /**
-     * CONSULTA (INSERT): Añadir una habitación.
-     */
     public function addRoom(WriteRoom $room): Identifier
     {
-        $sql = "INSERT INTO Habitaciones (Id, Nombre, Tipo, Precio, Capacidad) 
-                VALUES (:id, :nombre, :tipo, :precio, :capacidad)";
+        $sql = "INSERT INTO Habitaciones (Id, Nombre, Tipo, Precio, Capacidad, Estado) 
+                VALUES (:id, :nombre, :tipo, :precio, :capacidad, :estado)";
         
         $stmt = $this->pdo->prepare($sql);
-        
-        // 4. Usamos 'execute' con un array para prevenir Inyección SQL.
         $stmt->execute([
             ':id' => $room->getId()->getValue(),
             ':nombre' => $room->getName()->getValue(),
             ':tipo' => $room->getType()->getValue(),
             ':precio' => $room->getPrice()->getValue(),
-            ':capacidad' => $room->getCapacity()->getValue()
+            ':capacidad' => $room->getCapacity()->getValue(),
+            ':estado' => $room->getState()->getValue()
         ]);
-        
         return $room->getId();
     }
 
-    /**
-     * CONSULTA (UPDATE): Actualizar una habitación.
-     */
     public function updateRoom(WriteRoom $room): void
     {
         $sql = "UPDATE Habitaciones SET 
                     Nombre = :nombre, 
                     Tipo = :tipo, 
                     Precio = :precio, 
-                    Capacidad = :capacidad 
+                    Capacidad = :capacidad,
+                    Estado = :estado
                 WHERE Id = :id";
-                
-        $stmt = $this->pdo->prepare($sql);
         
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':id' => $room->getId()->getValue(),
             ':nombre' => $room->getName()->getValue(),
             ':tipo' => $room->getType()->getValue(),
             ':precio' => $room->getPrice()->getValue(),
-            ':capacidad' => $room->getCapacity()->getValue()
+            ':capacidad' => $room->getCapacity()->getValue(),
+            ':estado' => $room->getState()->getValue()
         ]);
     }
 
-    /**
-     * CONSULTA (SELECT BY ID): Obtener una habitación por ID.
-     */
     public function getRoomById(Identifier $id): ?ReadRoom
     {
-        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Tipo, Precio, Capacidad FROM Habitaciones WHERE Id = :id");
+        $stmt = $this->pdo->prepare("SELECT * FROM Habitaciones WHERE Id = :id");
         $stmt->execute([':id' => $id->getValue()]);
-        
         $row = $stmt->fetch();
 
-        if (!$row) {
-            return null; // No se encontró
-        }
+        if (!$row) return null;
+        return $this->mapRow($row);
+    }
 
-        // 5. Mapeamos los datos de la BD a nuestras Entidades y Value Objects
+    public function getRooms(): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM Habitaciones");
+        $stmt->execute();
+        $rows = $stmt->fetchAll();
+        
+        $rooms = [];
+        foreach ($rows as $row) {
+            $rooms[] = $this->mapRow($row);
+        }
+        return $rooms;
+    }
+
+    public function deleteRoom(Identifier $id): void
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM Habitaciones WHERE Id = :id");
+        $stmt->execute([':id' => $id->getValue()]);
+    }
+
+    private function mapRow(array $row): ReadRoom
+    {
         return new ReadRoom(
             new Identifier($row['Id']),
             new RoomName($row['Nombre']),
             new RoomType($row['Tipo']),
             new Price((float)$row['Precio']),
-            new RoomCapacity((int)$row['Capacidad'])
+            new RoomCapacity((int)$row['Capacidad']),
+            new RoomState($row['Estado'] ?? 'Disponible')
         );
     }
 
     /**
-     * CONSULTA (SELECT): Obtener todas las habitaciones.
-     *
-     * @return ReadRoom[]
-     * @psalm-return list<ReadRoom>
-     * @phpstan-return list<ReadRoom>
+     * NUEVO MÉTODO: Actualizar solo el estado de la habitación
      */
-    public function getRooms(): array
+    public function updateRoomState(Identifier $id, RoomState $state): void
     {
-        $stmt = $this->pdo->prepare("SELECT Id, Nombre, Tipo, Precio, Capacidad FROM Habitaciones");
-        $stmt->execute();
-        
-        $rows = $stmt->fetchAll();
-        $rooms = [];
-
-        foreach ($rows as $row) {
-            $rooms[] = new ReadRoom(
-                new Identifier($row['Id']),
-                new RoomName($row['Nombre']),
-                new RoomType($row['Tipo']),
-                new Price((float)$row['Precio']),
-                new RoomCapacity((int)$row['Capacidad'])
-            );
-        }
-
-        return $rooms;
-    }
-
-    /**
-     * CONSULTA (DELETE): Borrar una habitación.
-     */
-    public function deleteRoom(Identifier $id): void
-    {
-        $stmt = $this->pdo->prepare("DELETE FROM Habitaciones WHERE Id = :id");
-        $stmt->execute([':id' => $id->getValue()]);
+        $sql = "UPDATE Habitaciones SET Estado = :state WHERE Id = :id";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':state' => $state->getValue(),
+            ':id' => $id->getValue()
+        ]);
     }
 }

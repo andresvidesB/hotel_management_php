@@ -1,6 +1,4 @@
 <?php
-// Archivo: src/ReservationProducts/Infrastructure/Factories/ReservationProductFactory.php
-
 declare(strict_types=1);
 
 namespace Src\ReservationProducts\Infrastructure\Factories;
@@ -14,13 +12,12 @@ final class ReservationProductFactory
 {
     public static function writeReservationProductFromArray(array $data): WriteReservationProduct
     {
-        // 1. Manejo de Fecha
+        // Fecha por defecto: Hoy
         $dateVal = $data['reservation_product_consumption_date'] ?? time();
         if (is_string($dateVal)) {
             $dateVal = strtotime($dateVal);
         }
 
-        // 2. Retorno de Entidad con Value Objects
         return new WriteReservationProduct(
             new Identifier($data['reservation_product_reservation_id']),
             new Identifier($data['reservation_product_product_id']),

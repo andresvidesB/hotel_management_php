@@ -1,9 +1,9 @@
 <?php
-// File: src/Rooms/Infrastructure/Services/RoomsController.php
 declare(strict_types=1);
 
 namespace Src\Rooms\Infrastructure\Services;
 
+use Src\Rooms\Domain\ValueObjects\RoomState;
 use Src\Rooms\Application\UseCases\AddRoom;
 use Src\Rooms\Application\UseCases\UpdateRoom;
 use Src\Rooms\Application\UseCases\DeleteRoom;
@@ -17,8 +17,15 @@ use Src\Shared\Domain\ValueObjects\Identifier;
 
 final class RoomsController
 {
-    /** Por qué: Permite invocar sin instanciar controlador en contextos estáticos/funcionales. */
 
+    public static function updateRoomState(string $id, string $state): void
+    {
+        // Convertimos strings a Value Objects
+        self::repo()->updateRoomState(
+            new Identifier($id),
+            new RoomState($state)
+        );
+    }
     public static function addRoom(array $room): Identifier
     {
         $roomEntity = RoomFactory::writeRoomFromArray($room);
@@ -45,33 +52,25 @@ final class RoomsController
     public static function getRooms(): array
     {
         $useCase = new GetRooms(self::repo());
-
         /** @var ReadRoom[] $items */
         $items = $useCase->execute();
 
         $rooms = [];
         foreach ($items as $room) {
-            if (!$room instanceof ReadRoom) { // por qué: evitar respuestas inconsistentes si el repo cambia
-                continue;
-            }
+            if (!$room instanceof ReadRoom) continue;
             $rooms[] = $room->toArray();
         }
 
         return $rooms;
     }
 
-    /**
-     * @return array<string,mixed> Empty array si no existe.
-     */
     public static function getRoomById(string $id): array
     {
         $useCase = new GetRoomById(self::repo());
         $read = $useCase->execute(new Identifier($id));
-
         return $read instanceof ReadRoom ? $read->toArray() : [];
     }
 
-    /** Helpers estáticos para dependencias */
     private static function repo(): MySqlRoomsRepository
     {
         return new MySqlRoomsRepository();

@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Src\Guests\Infrastructure\Services;
@@ -39,16 +38,10 @@ final class GuestsController
     public static function getGuests(): array
     {
         $useCase = new GetGuests(self::repo());
-        $items = $useCase->execute();
-
-        $result = [];
-        foreach ($items as $guest) {
-            if ($guest instanceof ReadGuest) {
-                $result[] = $guest->toArray();
-            }
-        }
-
-        return $result;
+        
+        // CORRECCIÓN: Devolvemos directamente el resultado del repositorio.
+        // El repositorio ya devuelve un array listo para usar (con nombres y todo).
+        return $useCase->execute();
     }
 
     public static function getGuestById(string $idPerson): array

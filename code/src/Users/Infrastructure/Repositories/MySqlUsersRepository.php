@@ -80,41 +80,39 @@ final class MySqlUsersRepository implements UsersRepository
     }
 
     /**
-     * MÉTODO CORREGIDO: Normaliza las claves del array
+     * MÉTODO ACTUALIZADO: Trae todos los datos personales
      */
     public function getUsers(): array
     {
         $rawRows = [];
         
-        // 1. Intentamos leer de la Vista (que tiene nombres, etc.)
         try {
             $stmt = $this->pdo->prepare("SELECT * FROM Vista_Usuarios_Info");
             $stmt->execute();
             $rawRows = $stmt->fetchAll();
         } catch (\Exception $e) {
-            // Fallback: Si la vista falla, leemos de la tabla base
+            // Fallback solo por seguridad
             $stmt = $this->pdo->prepare("SELECT * FROM Usuario");
             $stmt->execute();
             $rawRows = $stmt->fetchAll();
         }
 
-        // 2. "Traducimos" los resultados al formato que espera el Frontend
         $users = [];
         foreach ($rawRows as $row) {
-            // Detectamos el ID (puede venir como 'user_id' de la vista o 'IdPersona' de la tabla)
             $id = $row['user_id'] ?? $row['IdPersona'] ?? '';
-            
-            // Detectamos el Rol (puede venir como 'IdRol')
             $rol = $row['IdRol'] ?? '';
 
             $users[] = [
-                // Estas son las claves que 'usuarios.php' espera:
                 'user_id_person' => $id,
                 'user_role_id'   => $rol,
-                // Extras para 'reservas.php':
-                'NombreCompleto' => $row['NombreCompleto'] ?? ('Usuario ' . substr($id, 0, 5)),
-                // Contraseña (dummy para la lista, no se muestra)
-                'user_password'  => $row['Contrasena'] ?? ''
+                'user_password'  => $row['Contrasena'] ?? '',
+                
+                // DATOS EXTENDIDOS PARA LA TABLA DE USUARIOS
+                'Nombres'           => $row['Nombres'] ?? '',
+                'Apellidos'         => $row['Apellidos'] ?? '',
+                'CorreoElectronico' => $row['CorreoElectronico'] ?? 'Sin correo',
+                'NombreCompleto'    => $row['NombreCompleto'] ?? ('Usuario ' . substr($id, 0, 5)),
+                'Telefono'          => $row['Telefono'] ?? ''
             ];
         }
 

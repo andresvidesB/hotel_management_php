@@ -1,9 +1,10 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Src\ReservationStatus\Infrastructure\Repositories;
 
+use \PDO;
+use Src\Shared\Infrastructure\Database;
 use Src\ReservationStatus\Domain\Entities\ReadReservationStatus;
 use Src\ReservationStatus\Domain\Entities\WriteReservationStatus;
 use Src\ReservationStatus\Domain\Interfaces\ReservationStatusRepository;
@@ -12,46 +13,85 @@ use Src\Shared\Domain\ValueObjects\TimeStamp;
 
 final class MySqlReservationStatusRepository implements ReservationStatusRepository
 {
-    public function addReservationStatus(WriteReservationStatus $relation): void {}
+    // 1. PROPIEDAD CRÍTICA PARA LA CONEXIÓN
+    private PDO $pdo;
 
-    public function updateReservationStatus(WriteReservationStatus $relation): void {}
+    // 2. CONSTRUCTOR QUE INICIA LA CONEXIÓN
+    public function __construct()
+    {
+        $this->pdo = (new Database())->getConnection();
+    }
 
-    public function deleteReservationStatus(
-        Identifier $reservationId,
-        Identifier $statusId
-    ): void {}
+    public function addReservationStatus(WriteReservationStatus $relation): void
+    {
+        $sql = "INSERT INTO Reserva_Estado (IdReserva, IdEstado, FechaCambio) 
+                VALUES (:resId, :statusId, :changedAt)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        
+        $date = date('Y-m-d H:i:s', $relation->getChangedAt()->getValue());
+
+        $stmt->execute([
+            ':resId'    => $relation->getReservationId()->getValue(),
+            ':statusId' => $relation->getStatusId()->getValue(),
+            ':changedAt'=> $date
+        ]);
+    }
+
+    public function updateReservationStatus(WriteReservationStatus $relation): void
+    {
+        $sql = "UPDATE Reserva_Estado SET 
+                    FechaCambio = :changedAt
+                WHERE IdReserva = :resId AND IdEstado = :statusId";
+
+        $stmt = $this->pdo->prepare($sql);
+        $date = date('Y-m-d H:i:s', $relation->getChangedAt()->getValue());
+
+        $stmt->execute([
+            ':resId'    => $relation->getReservationId()->getValue(),
+            ':statusId' => $relation->getStatusId()->getValue(),
+            ':changedAt'=> $date
+        ]);
+    }
+
+    public function deleteReservationStatus(Identifier $reservationId, Identifier $statusId): void
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM Reserva_Estado WHERE IdReserva = :resId AND IdEstado = :statusId");
+        $stmt->execute([
+            ':resId'    => $reservationId->getValue(),
+            ':statusId' => $statusId->getValue()
+        ]);
+    }
 
     public function getReservationStatuses(): array
     {
-        return $this->seed();
+        $stmt = $this->pdo->prepare("SELECT IdReserva, IdEstado, FechaCambio FROM Reserva_Estado");
+        $stmt->execute();
+        return $this->mapRows($stmt->fetchAll());
     }
 
     public function getStatusesByReservation(Identifier $reservationId): array
     {
+        // Incluye el ORDER BY para asegurar que el estado actual sea el último
+        $stmt = $this->pdo->prepare("SELECT IdReserva, IdEstado, FechaCambio 
+                                     FROM Reserva_Estado 
+                                     WHERE IdReserva = :id 
+                                     ORDER BY FechaCambio ASC");
+        $stmt->execute([':id' => $reservationId->getValue()]);
+        return $this->mapRows($stmt->fetchAll());
+    }
+
+    private function mapRows(array $rows): array
+    {
         $result = [];
-        foreach ($this->seed() as $item) {
-            if ($item->getReservationId()->getValue() === $reservationId->getValue()) {
-                $result[] = $item;
-            }
+        foreach ($rows as $row) {
+            $dateInt = strtotime($row['FechaCambio']);
+            $result[] = new ReadReservationStatus(
+                new Identifier($row['IdReserva']),
+                new Identifier($row['IdEstado']),
+                new TimeStamp((int)$dateInt)
+            );
         }
         return $result;
-    }
-
-    private function seed(): array
-    {
-        return [
-            $this->make('1', '10', 1234),
-            $this->make('1', '20', 1234),
-            $this->make('2', '10', 1234),
-        ];
-    }
-
-    private function make(string $reservationId, string $statusId, int $changedAt): ReadReservationStatus
-    {
-        return new ReadReservationStatus(
-            new Identifier($reservationId),
-            new Identifier($statusId),
-            new TimeStamp($changedAt)
-        );
     }
 }
