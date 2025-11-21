@@ -2,6 +2,7 @@
 // 1. Cargar Autoload y Controladores
 require __DIR__ . '/vendor/autoload.php';
 
+use Src\Shared\Infrastructure\Services\EmailService;
 use Src\Reservations\Infrastructure\Services\ReservationsController;
 use Src\ReservationRooms\Infrastructure\Services\ReservationRoomsController;
 use Src\ReservationStatus\Infrastructure\Services\ReservationStatusController;
@@ -156,6 +157,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'reservation_guest_reservation_id' => $reservaId,
                 'reservation_guest_guest_id' => $userId
             ]);
+
+            // --- ENVIAR CORREO (Si hay email) ---
+            try {
+                $targetEmail = $newEmail ?? ''; // Si es nuevo cliente
+                $targetName = ($newNombre ?? '') . ' ' . ($newApellido ?? '');
+
+                // Si era cliente existente, buscamos su email
+                if (empty($targetEmail)) {
+                    foreach ($usuarios as $u) {
+                        if ($u['user_id_person'] === $userId) {
+                            $targetEmail = $u['CorreoElectronico'];
+                            $targetName = $u['NombreCompleto'];
+                            break;
+                        }
+                    }
+                }
+                
+                // Buscamos nombre habitación para el correo
+                $roomNameMail = $roomId;
+                foreach($habitaciones as $h) { if($h['room_id'] == $roomId) $roomNameMail = $h['room_name']; }
+
+                if (!empty($targetEmail)) {
+                    EmailService::sendReservationVoucher($targetEmail, $targetName, [
+                        'id' => $reservaId,
+                        'room' => $roomNameMail,
+                        'start' => $startDate,
+                        'end' => $endDate
+                    ]);
+                }
+            } catch (Exception $e) {}
 
             $message = "✅ Reserva creada exitosamente.";
         }

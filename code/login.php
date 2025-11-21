@@ -42,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            /* Imagen de fondo de lujo (Unsplash) */
             background: url('https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1920&q=80') no-repeat center center fixed;
             background-size: cover;
             height: 100vh;
@@ -51,46 +50,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             justify-content: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
-        /* Capa oscura para mejorar lectura */
         .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.5); /* Oscuridad al 50% */
-            z-index: 1;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); z-index: 1;
         }
-
         .login-card {
-            position: relative;
-            z-index: 2; /* Encima de la capa oscura */
-            width: 100%;
-            max-width: 400px;
-            padding: 2.5rem;
-            border-radius: 15px;
-            /* Blanco con ligera transparencia */
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px); /* Efecto borroso detrás */
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-            border-top: 5px solid #0d6efd; /* Detalle de color arriba */
+            position: relative; z-index: 2; width: 100%; max-width: 400px; padding: 2.5rem;
+            border-radius: 15px; background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px); box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            border-top: 5px solid #0d6efd;
         }
-
         .logo-icon {
-            width: 80px;
-            height: 80px;
-            background: #0d6efd;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            margin: -60px auto 20px auto; /* Flotando arriba de la tarjeta */
+            width: 80px; height: 80px; background: #0d6efd; color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; margin: -60px auto 20px auto;
             box-shadow: 0 5px 15px rgba(13, 110, 253, 0.4);
-        }
-
-        .form-control:focus {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
         }
     </style>
 </head>
@@ -110,12 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php endif; ?>
 
-    <?php if (!empty($next)): ?>
-        <div class="alert alert-info small text-center py-2 mb-3 border-0 bg-info bg-opacity-10 text-info">
-            <i class="fa-solid fa-lock me-1"></i> Inicia sesión para finalizar tu reserva.
-        </div>
-    <?php endif; ?>
-
     <form method="POST">
         <input type="hidden" name="next_redirect" value="<?= htmlspecialchars($next) ?>">
 
@@ -124,9 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <label for="id" class="text-muted"><i class="fa-solid fa-user me-1"></i> Usuario / Documento</label>
         </div>
         
-        <div class="form-floating mb-4 text-start">
+        <div class="form-floating mb-2 text-start">
             <input type="password" class="form-control" id="password" name="password" placeholder="Contraseña" required>
             <label for="password" class="text-muted"><i class="fa-solid fa-key me-1"></i> Contraseña</label>
+        </div>
+        
+        <div class="text-end mb-4">
+            <a href="recuperar.php" class="text-decoration-none small text-primary fw-semibold">
+                ¿Olvidaste tu contraseña?
+            </a>
         </div>
         
         <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm mb-3 text-uppercase" style="letter-spacing: 1px;">

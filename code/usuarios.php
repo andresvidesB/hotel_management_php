@@ -1,5 +1,5 @@
 <?php
-// 1. Cargar Autoload y Controladores
+
 require __DIR__ . '/vendor/autoload.php';
 use Src\Users\Infrastructure\Services\UsersController;
 use Src\Roles\Infrastructure\Services\RolesController;
@@ -9,7 +9,7 @@ use Src\Guests\Infrastructure\Services\GuestsController;
 $message = null; // Mensajes de éxito
 $error = null;   // Mensajes de error
 
-// 2. Traer la lista de Roles
+//Traer la lista de Roles
 try {
     $roles = RolesController::getRoles();
 } catch (Exception $e) {
@@ -17,12 +17,12 @@ try {
     $roles = [];
 }
 
-// 3. MANEJO DE ACCIONES (POST)
+//MANEJO DE ACCIONES (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     try {
-        // --- ACCIÓN: AGREGAR USUARIO COMPLETO ---
+        // AGREGAR USUARIO COMPLETO ---
         if ($_POST['action'] === 'add_user') {
-            // Recoger datos
+            // datos
             $password = trim($_POST['password'] ?? '');
             $roleId   = trim($_POST['role_id'] ?? '');
             $nombres  = trim($_POST['nombres'] ?? '');
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $idCreator = new UuidIdentifierCreator();
             $userId = $idCreator->createIdentifier()->getValue();
             
-            // 1. Crear Usuario (Login)
+            // Crear Usuario login
             $userData = [
                 'user_id_person' => $userId,
                 'user_password' => $password, 
@@ -46,10 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ];
             UsersController::addUser($userData);
 
-            // 2. Guardar Datos Personales (Nombre, Apellido, Email)
+            //Guardar Datos Personales (Nombre, Apellido, Email)
             UsersController::savePersonData($userId, $nombres, $apellidos, $email);
 
-            // 3. Si puso Cédula, crear registro en Huéspedes (Opcional pero útil)
+            //Si puso Cédula, crear registro en Huéspedes 
             if (!empty($cc)) {
                 try {
                     GuestsController::addGuest([
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = "✅ Usuario y Datos Personales guardados con éxito.";
         }
 
-        // --- ACCIÓN: EDITAR USUARIO ---
+        // EDITAR USUARIO
         elseif ($_POST['action'] === 'edit_user') {
             $id = $_POST['user_id'] ?? '';
             $password = trim($_POST['password'] ?? '');
@@ -79,9 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 throw new Exception("Datos incompletos.");
             }
 
-            // 1. Actualizar Credenciales (si password no está vacío)
+            // Actualizar Credenciales (si password no está vacío)
             if (empty($password)) {
-                // Recuperar pass actual para no perderla (o lógica en repo para ignorar vacíos)
+                // Recuperar pass actual para no perderla o lógica en repo para ignorar vacíos
                 $currentUser = UsersController::getUserByIdPerson($id);
                 if ($currentUser) $password = $currentUser['user_password'];
             }
@@ -93,13 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ];
             UsersController::updateUser($userData);
 
-            // 2. Actualizar Datos Personales
+            // Actualizar Datos Personales
             UsersController::savePersonData($id, $nombres, $apellidos, $email);
 
             $message = "✏️ Datos actualizados con éxito.";
         }
 
-        // --- ACCIÓN: ELIMINAR USUARIO ---
+        // ELIMINAR USUARIO 
         elseif ($_POST['action'] === 'delete_user') {
             $id = $_POST['user_id'] ?? '';
             if (empty($id)) throw new Exception("ID inválido.");
@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// 4. Obtener Usuarios
+// Obtener Usuarios
 try {
     $usuarios = UsersController::getUsers();
 } catch (Exception $e) {

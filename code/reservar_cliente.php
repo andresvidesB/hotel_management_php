@@ -1,6 +1,8 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
+use Src\Shared\Infrastructure\Services\EmailService;
+use Src\Users\Infrastructure\Services\UsersController; // Necesario para buscar el email
 use Src\Rooms\Infrastructure\Services\RoomsController;
 use Src\Reservations\Infrastructure\Services\ReservationsController;
 use Src\ReservationRooms\Infrastructure\Services\ReservationRoomsController;
@@ -87,6 +89,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'reservation_guest_reservation_id' => $realId,
             'reservation_guest_guest_id' => $userId
         ]);
+
+        // --- ENVIAR CORREO DE CONFIRMACIÓN ---
+        try {
+            // 1. Obtener datos del usuario para el correo
+            $userData = UsersController::getUserByIdPerson($userId);
+            // Nota: getUserByIdPerson devuelve el array plano, necesitamos el email de la tabla Terceros.
+            // Usaremos getUsers() filtrando por ID para aprovechar la Vista SQL que ya trae el email.
+            $allUsers = UsersController::getUsers();
+            $userEmail = '';
+            $userName = 'Cliente';
+            
+            foreach($allUsers as $u) {
+                if($u['user_id_person'] === $userId) {
+                    $userEmail = $u['CorreoElectronico'];
+                    $userName = $u['NombreCompleto'];
+                    break;
+                }
+            }
+
+            if (!empty($userEmail)) {
+                EmailService::sendReservationVoucher($userEmail, $userName, [
+                    'id' => $realId,
+                    'room' => $room['room_name'],
+                    'start' => $start,
+                    'end' => $end
+                ]);
+            }
+        } catch (Exception $mailError) {
+            // No detenemos la reserva si falla el correo, solo lo registramos o ignoramos
+        }
 
         $message = "¡Reserva realizada con éxito! Gracias por preferirnos.";
 

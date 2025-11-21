@@ -16,17 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if(empty($id) || empty($nombre) || empty($password)) throw new Exception("Campos obligatorios vacíos.");
 
-        // 1. Crear Usuario (Rol 3 = Cliente)
+        // Crear Usuario Rol 3 = Cliente
         UsersController::addUser([
             'user_id_person' => $id,
-            'user_password' => $password, // Aquí deberías usar password_hash($password, PASSWORD_BCRYPT) en producción
+            'user_password' => $password, // Aquí usar password_hash($password, PASSWORD_BCRYPT) en producción
             'user_role_id' => '3' 
         ]);
 
-        // 2. Guardar Datos Personales
+        // Guardar Datos Personales
         UsersController::savePersonData($id, $nombre, $apellido, $email);
 
-        // 3. Crear registro base de Huésped
+        // Crear registro base de Huésped
         GuestsController::addGuest([
             'guest_id_person' => $id,
             'guest_document_type' => 'CC', // Default

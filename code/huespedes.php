@@ -28,7 +28,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     try {
         
-        // === ACCIÓN 1: AGREGAR NUEVO HUÉSPED ===
+        // ===AGREGAR NUEVO HUÉSPED ===
         if ($_POST['action'] === 'add_guest') {
             $nombres  = trim($_POST['nombres']);
             $apellidos= trim($_POST['apellidos']);
@@ -42,17 +42,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $idCreator = new UuidIdentifierCreator();
             $personaId = $idCreator->createIdentifier()->getValue();
 
-            // 1. Crear Usuario de Acceso (Rol Cliente)
+            // Crear Usuario de Acceso (Rol Cliente)
             UsersController::addUser([
                 'user_id_person' => $personaId,
                 'user_password' => '12345', 
                 'user_role_id' => '3' 
             ]);
 
-            // 2. Guardar Datos Personales
+            // Guardar Datos Personales
             UsersController::savePersonData($personaId, $nombres, $apellidos, $email);
 
-            // 3. Crear Registro de Huésped
+            // Crear Registro de Huésped
             GuestsController::addGuest([
                 'guest_id_person' => $personaId,
                 'guest_document_type' => $docType,
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = "✅ Huésped registrado correctamente.";
         }
 
-        // === ACCIÓN 2: EDITAR HUÉSPED ===
+        // ===EDITAR HUÉSPED ===
         elseif ($_POST['action'] === 'edit_guest') {
             $id = $_POST['guest_id'];
             $nombres  = trim($_POST['nombres']);
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = "✏️ Datos actualizados.";
         }
 
-        // === ACCIÓN 3: ELIMINAR HUÉSPED ===
+        // ELIMINAR HUÉSPED
         elseif ($_POST['action'] === 'delete_guest') {
             GuestsController::deleteGuest($_POST['guest_id']);
             $message = "🗑️ Huésped eliminado.";
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 throw new Exception("🚫 La habitación NO está disponible en esas fechas.");
             }
 
-            // 1. Asegurar que el Usuario sea Huésped
+            // Asegurar que el Usuario sea Huésped
             $huespedExistente = GuestsController::getGuestById($userId);
             if (empty($huespedExistente)) {
                 GuestsController::addGuest([
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 ]);
             }
 
-            // 2. Crear Reserva
+            // Crear Reserva
             $idCreator = new UuidIdentifierCreator();
             $reservaId = $idCreator->createIdentifier()->getValue(); // ID Temporal
 
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ]);
             $reservaIdReal = $resIdentifier->getValue();
 
-            // 3. Asignar Habitación
+            // Asignar Habitación
             ReservationRoomsController::addReservationRoom([
                 'reservation_room_reservation_id' => $reservaIdReal,
                 'reservation_room_room_id' => $roomId,
@@ -139,10 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'reservation_room_end_date' => $endDate
             ]);
 
-            // 4. ACTUALIZAR ESTADO FÍSICO DE LA HABITACIÓN A "OCUPADA"
+            // ACTUALIZAR ESTADO FÍSICO DE LA HABITACIÓN A "OCUPADA"
             RoomsController::updateRoomState($roomId, 'Ocupada');
 
-            // 5. Asignar Estado de Reserva
+            // Asignar Estado de Reserva
             $estadoId = '20'; // Default 'Ocupada'
             foreach($estados as $s) { if(stripos($s['status_name'], 'Ocupad') !== false) $estadoId = $s['status_id']; }
             
@@ -152,13 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'reservation_status_changed_at' => time()
             ]);
 
-            // 6. Vincular Huésped
+            // Vincular Huésped
             ReservationGuestsController::addReservationGuest([
                 'reservation_guest_reservation_id' => $reservaIdReal,
                 'reservation_guest_guest_id' => $userId
             ]);
 
-            // 7. Registrar Pago
+            // Registrar Pago
             if ($hasPayment && $paymentAmount > 0) {
                 ReservationPaymentsController::addReservationPayment([
                     'reservation_payment_reservation_id' => $reservaIdReal,
